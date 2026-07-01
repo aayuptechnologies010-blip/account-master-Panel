@@ -7,6 +7,7 @@ const businessSchema = new mongoose.Schema({
   phone:        String,
   email:        String,
   address:      String,
+
   
 });
 

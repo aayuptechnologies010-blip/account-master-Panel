@@ -227,8 +227,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    setAuthenticated(apiService.isAuthenticated());
-    reloadStats();
+    const isAuth = apiService.isAuthenticated();
+    setAuthenticated(isAuth);
+    if (isAuth) reloadStats();
   }, [apiModeState]);
 
   const handleLoginSuccess = () => {

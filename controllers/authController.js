@@ -27,7 +27,7 @@ exports.verifyFirebaseToken = async (req, res) => {
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, phone: user.phone },
+      { id: user._id, email: user.email, phone: user.phone, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -49,26 +49,31 @@ exports.logout = async (req, res) => {
   res.json({ success: true });
 };
 
-// Register — phone + password se naya user banao
+// Register — email/phone + password se naya user banao
 exports.register = async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, email, password } = req.body;
 
-    if (!phone || !password) {
-      return res.status(400).json({ success: false, message: 'phone aur password dono required hain' });
+    if ((!phone && !email) || !password) {
+      return res.status(400).json({ success: false, message: 'phone/email aur password required hain' });
     }
 
-    const existing = await User.findOne({ phone });
+    const query = email ? { email: email.toLowerCase() } : { phone };
+    const existing = await User.findOne(query);
     if (existing) {
-      return res.status(409).json({ success: false, message: 'Is phone number se account already exist karta hai' });
+      return res.status(409).json({ success: false, message: 'Account already exist karta hai' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ phone, password: hashedPassword });
+    const user = new User({
+      phone,
+      email: email ? email.toLowerCase() : undefined,
+      password: hashedPassword
+    });
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, phone: user.phone },
+      { id: user._id, email: user.email, phone: user.phone, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -80,27 +85,80 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login — phone + password match karo, token do
-exports.login = async (req, res) => {
+// Register SuperAdmin — email + password se naya superadmin banao
+exports.registerSuperAdmin = async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!phone || !password) {
-      return res.status(400).json({ success: false, message: 'phone aur password dono required hain' });
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'email aur password required hain' });
     }
 
-    const user = await User.findOne({ phone });
-    if (!user || !user.password) {
-      return res.status(401).json({ success: false, message: 'Phone number ya password galat hai' });
+    // Protect endpoint: only allow registering one superadmin
+    const existingSuperAdmin = await User.findOne({ role: 'superadmin' });
+    if (existingSuperAdmin) {
+      return res.status(400).json({ success: false, message: 'Superadmin account already exists. Duplicate creation via API is blocked.' });
+    }
+
+    const existingEmail = await User.findOne({ email: email.toLowerCase() });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, message: 'Is email address se account already exist karta hai' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      role: 'superadmin'
+    });
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({ success: true, token, userId: user._id, message: 'Superadmin registered successfully' });
+  } catch (err) {
+    console.error('registerSuperAdmin error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// Login — email/phone + password match karo, token do
+exports.login = async (req, res) => {
+  try {
+    const { phone, email, password } = req.body;
+    console.log('Login attempt received. Email:', email, 'Phone:', phone);
+
+    if ((!phone && !email) || !password) {
+      console.log('Login failed: Missing credentials');
+      return res.status(400).json({ success: false, message: 'email/phone aur password dono required hain' });
+    }
+
+    const query = email ? { email: email.toLowerCase() } : { phone };
+    console.log('DB Query:', query);
+    const user = await User.findOne(query);
+    if (!user) {
+      console.log('Login failed: User not found in database');
+      return res.status(401).json({ success: false, message: 'Email/Phone ya password galat hai' });
+    }
+
+    if (!user.password) {
+      console.log('Login failed: User has no password set in database');
+      return res.status(401).json({ success: false, message: 'Email/Phone ya password galat hai' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Phone number ya password galat hai' });
+      console.log('Login failed: Password mismatch');
+      return res.status(401).json({ success: false, message: 'Email/Phone ya password galat hai' });
     }
 
+    console.log('Login successful. Generating token for user ID:', user._id);
     const token = jwt.sign(
-      { id: user._id, phone: user.phone },
+      { id: user._id, email: user.email, phone: user.phone, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -129,7 +187,7 @@ exports.devLogin = async (req, res) => {
       await user.save();
     }
     const token = jwt.sign(
-      { id: user._id, phone: user.phone },
+      { id: user._id, email: user.email, phone: user.phone, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );

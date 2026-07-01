@@ -24,14 +24,18 @@ app.use(helmet());
 
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
-  : process.env.NODE_ENV === 'development'
-    ? ['http://localhost:3000', 'http://localhost:5173']
-    : [];
+  : [];
+
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:5173', 'http://10.28.25.151:5173');
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin || process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,

@@ -285,9 +285,10 @@ export default function App() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial auth/session check on mount
-    setAuthenticated(apiService.isAuthenticated());
+    const isAuth = apiService.isAuthenticated();
+    setAuthenticated(isAuth);
     setViewingOwner(apiService.getViewingOwner());
-    reloadStats();
+    if (isAuth) reloadStats();
   }, [apiModeState]);
 
   const handleLoginSuccess = () => {

@@ -48,6 +48,9 @@ export const apiService = {
     if (res.data.success && res.data.token) {
       localStorage.setItem('am_token', res.data.token);
       localStorage.setItem('am_user', JSON.stringify({ email }));
+      localStorage.removeItem('am_role');
+      localStorage.removeItem('am_viewing_owner_id');
+      localStorage.removeItem('am_viewing_owner_name');
     }
     return res.data;
   },

@@ -32,12 +32,24 @@ import {
   HStack,
   NumberInput,
   NumberInputField,
-  Divider
+  Divider,
+  IconButton
 } from '@chakra-ui/react';
-import { FaSearch, FaEdit, FaTrash, FaPlus, FaPrint } from 'react-icons/fa';
+import { FaSearch, FaEdit, FaTrash, FaPlus, FaPrint, FaTimes } from 'react-icons/fa';
 import { apiService } from '../apiService';
 import Pagination from './Pagination';
 import Swal from 'sweetalert2';
+
+const EMPTY_ITEM = { name: '', description: '', quantity: 1, unitPrice: 0 };
+
+function computeTotals(items, discountPercent, gstPercent, shippingCharge) {
+  const subtotal = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
+  const discountAmount = subtotal * (Number(discountPercent) || 0) / 100;
+  const taxable = subtotal - discountAmount;
+  const gstAmount = taxable * (Number(gstPercent) || 0) / 100;
+  const grandTotal = taxable + gstAmount + (Number(shippingCharge) || 0);
+  return { subtotal, discountAmount, gstAmount, grandTotal };
+}
 
 export default function InvoicesManager() {
   const [invoices, setInvoices] = useState([]);
@@ -50,9 +62,15 @@ export default function InvoicesManager() {
   // Form values
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [customerName, setCustomerName] = useState('');
-  const [productName, setProductName] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [price, setPrice] = useState(0);
+  const [customerId, setCustomerId] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [gstPercent, setGstPercent] = useState(18);
+  const [shippingCharge, setShippingCharge] = useState(0);
+  const [dueDate, setDueDate] = useState('');
   const [status, setStatus] = useState('pending');
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -86,32 +104,62 @@ export default function InvoicesManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchInvoices intentionally excluded to avoid re-creating the effect every render
   }, [page, search, pageSize]);
 
+  const resetForm = () => {
+    setCustomerName('');
+    setCustomerId('');
+    setCustomerAddress('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setItems([{ ...EMPTY_ITEM }]);
+    setDiscountPercent(0);
+    setGstPercent(18);
+    setShippingCharge(0);
+    setDueDate('');
+    setStatus('pending');
+  };
+
   const handleOpenAdd = () => {
     setSelectedInvoice(null);
-    setCustomerName('');
-    setProductName('');
-    setQuantity(1);
-    setPrice(0);
-    setStatus('pending');
+    resetForm();
     onOpen();
   };
 
   const handleOpenEdit = (inv) => {
     setSelectedInvoice(inv);
-    setCustomerName(inv.customer_name);
-    setProductName(inv.product_name || '');
-    setQuantity(inv.quantity || 1);
-    setPrice(inv.price || 0);
+    setCustomerName(inv.customer_name || '');
+    setCustomerId(inv.customer_id ?? '');
+    setCustomerAddress(inv.customerAddress || '');
+    setCustomerPhone(inv.customerPhone || '');
+    setCustomerEmail(inv.customerEmail || '');
+    setItems(
+      Array.isArray(inv.items) && inv.items.length
+        ? inv.items.map((it) => ({ name: it.name || '', description: it.description || '', quantity: it.quantity || 1, unitPrice: it.unitPrice || 0 }))
+        : [{ name: inv.product_name || '', description: '', quantity: inv.quantity || 1, unitPrice: inv.price || 0 }]
+    );
+    setDiscountPercent(inv.discountPercent || 0);
+    setGstPercent(inv.gstPercent || 0);
+    setShippingCharge(inv.shippingCharge || 0);
+    setDueDate(inv.dueDate ? new Date(inv.dueDate).toISOString().slice(0, 10) : '');
     setStatus(inv.status || 'pending');
     onOpen();
   };
 
+  const handleItemChange = (index, field, value) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
+  };
+
+  const handleAddItemRow = () => setItems((prev) => [...prev, { ...EMPTY_ITEM }]);
+  const handleRemoveItemRow = (index) => setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+
+  const { subtotal, discountAmount, gstAmount, grandTotal } = computeTotals(items, discountPercent, gstPercent, shippingCharge);
+
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!customerName || !price) {
+    const validItems = items.filter((it) => it.name.trim() && Number(it.unitPrice) > 0);
+    if (!customerName || validItems.length === 0) {
       toast({
         title: "Validation Error",
-        description: "Customer Name and Price are required.",
+        description: "Customer name and at least one product/service line are required.",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -121,11 +169,16 @@ export default function InvoicesManager() {
 
     const payload = {
       customer_name: customerName,
-      product_name: productName,
-      quantity: Number(quantity),
-      price: Number(price),
-      total: Number(quantity) * Number(price),
-      status
+      customer_id: customerId ? Number(customerId) : undefined,
+      customerAddress,
+      customerPhone,
+      customerEmail,
+      items: validItems.map((it) => ({ name: it.name, description: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unitPrice) })),
+      discountPercent: Number(discountPercent) || 0,
+      gstPercent: Number(gstPercent) || 0,
+      shippingCharge: Number(shippingCharge) || 0,
+      dueDate: dueDate || undefined,
+      status,
     };
 
     try {
@@ -209,6 +262,13 @@ export default function InvoicesManager() {
     }
   };
 
+  const describeItems = (inv) => {
+    const list = Array.isArray(inv.items) && inv.items.length ? inv.items : (inv.product_name ? [{ name: inv.product_name, quantity: inv.quantity }] : []);
+    if (list.length === 0) return '—';
+    if (list.length === 1) return list[0].name;
+    return `${list[0].name} +${list.length - 1} more`;
+  };
+
   return (
     <Box bg="white" p={6} borderRadius="16px" border="1px solid #e2e8f0" boxShadow="0 1px 8px rgba(0,0,0,0.05)">
       <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center" gap={4} mb={6}>
@@ -257,8 +317,7 @@ export default function InvoicesManager() {
           <Thead bg="gray.50">
             <Tr>
               <Th color="gray.500" fontSize="xs" fontWeight="700">Client / Party</Th>
-              <Th color="gray.500" fontSize="xs" fontWeight="700">Product</Th>
-              <Th color="gray.500" fontSize="xs" fontWeight="700">Qty × Price</Th>
+              <Th color="gray.500" fontSize="xs" fontWeight="700">Product(s)</Th>
               <Th color="gray.500" fontSize="xs" fontWeight="700">Total Amount</Th>
               <Th color="gray.500" fontSize="xs" fontWeight="700">Status</Th>
               <Th color="gray.500" fontSize="xs" fontWeight="700" textAlign="right">Actions</Th>
@@ -267,7 +326,7 @@ export default function InvoicesManager() {
           <Tbody>
             {invoices.length === 0 ? (
               <Tr>
-                <Td colSpan={6} textAlign="center" py={10} color="gray.400" fontSize="sm">
+                <Td colSpan={5} textAlign="center" py={10} color="gray.400" fontSize="sm">
                   No invoice records found.
                 </Td>
               </Tr>
@@ -275,10 +334,7 @@ export default function InvoicesManager() {
               invoices.map((inv) => (
                 <Tr key={inv._id}>
                   <Td fontWeight="700" color="gray.700">{inv.customer_name}</Td>
-                  <Td color="gray.600">{inv.product_name || '—'}</Td>
-                  <Td fontSize="sm" color="gray.500">
-                    {inv.quantity} × ₹{inv.price}
-                  </Td>
+                  <Td color="gray.600">{describeItems(inv)}</Td>
                   <Td fontWeight="bold" color="gray.800">
                     ₹{inv.total?.toLocaleString('en-IN')}
                   </Td>
@@ -338,7 +394,7 @@ export default function InvoicesManager() {
       />
 
       {/* Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} isCentered>
+      <Modal isOpen={isOpen} onClose={onClose} isCentered size="2xl" scrollBehavior="inside">
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(2px)" />
         <ModalContent borderRadius="18px">
           <form onSubmit={handleSave}>
@@ -347,60 +403,175 @@ export default function InvoicesManager() {
             </ModalHeader>
             <ModalCloseButton />
             <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Customer Name</FormLabel>
-                  <Input
-                    placeholder="Enter customer name"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    borderRadius="10px"
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Product Name</FormLabel>
-                  <Input
-                    placeholder="Enter product description"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    borderRadius="10px"
-                  />
-                </FormControl>
-
-                <HStack spacing={4} w="full">
+              <VStack spacing={4} align="stretch">
+                <Text fontWeight="700" fontSize="sm" color="gray.700">Bill To</Text>
+                <HStack spacing={4}>
                   <FormControl isRequired>
-                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Quantity</FormLabel>
-                    <NumberInput min={1} value={quantity} onChange={(val) => setQuantity(Number(val) || 1)}>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Customer Name</FormLabel>
+                    <Input
+                      placeholder="Enter customer name"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      borderRadius="10px"
+                    />
+                  </FormControl>
+                  <FormControl maxW="160px">
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Customer ID</FormLabel>
+                    <Input
+                      placeholder="Optional"
+                      value={customerId}
+                      onChange={(e) => setCustomerId(e.target.value)}
+                      borderRadius="10px"
+                    />
+                  </FormControl>
+                </HStack>
+                <HStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Phone</FormLabel>
+                    <Input
+                      placeholder="Customer phone"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      borderRadius="10px"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Email</FormLabel>
+                    <Input
+                      placeholder="Customer email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      borderRadius="10px"
+                    />
+                  </FormControl>
+                </HStack>
+                <FormControl>
+                  <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Address</FormLabel>
+                  <Input
+                    placeholder="Customer address"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    borderRadius="10px"
+                  />
+                </FormControl>
+
+                <Divider />
+
+                <Flex justify="space-between" align="center">
+                  <Text fontWeight="700" fontSize="sm" color="gray.700">Products / Services</Text>
+                  <Button size="xs" leftIcon={<FaPlus />} variant="outline" colorScheme="sky" onClick={handleAddItemRow} borderRadius="6px">
+                    Add Line
+                  </Button>
+                </Flex>
+
+                {items.map((item, index) => (
+                  <Box key={index} p={3} border="1px solid #e2e8f0" borderRadius="10px">
+                    <HStack spacing={2} mb={2}>
+                      <Input
+                        placeholder="Product / Service name"
+                        value={item.name}
+                        onChange={(e) => handleItemChange(index, 'name', e.target.value)}
+                        borderRadius="8px"
+                        size="sm"
+                      />
+                      <IconButton
+                        aria-label="Remove line"
+                        icon={<FaTimes />}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        isDisabled={items.length === 1}
+                        onClick={() => handleRemoveItemRow(index)}
+                      />
+                    </HStack>
+                    <Input
+                      placeholder="Description (optional)"
+                      value={item.description}
+                      onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                      borderRadius="8px"
+                      size="sm"
+                      mb={2}
+                    />
+                    <HStack spacing={3}>
+                      <FormControl>
+                        <FormLabel fontSize="xs" color="gray.500" mb={1}>Qty</FormLabel>
+                        <NumberInput min={1} size="sm" value={item.quantity} onChange={(val) => handleItemChange(index, 'quantity', Number(val) || 1)}>
+                          <NumberInputField borderRadius="8px" />
+                        </NumberInput>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel fontSize="xs" color="gray.500" mb={1}>Unit Price (₹)</FormLabel>
+                        <NumberInput min={0} size="sm" value={item.unitPrice} onChange={(val) => handleItemChange(index, 'unitPrice', Number(val) || 0)}>
+                          <NumberInputField borderRadius="8px" />
+                        </NumberInput>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel fontSize="xs" color="gray.500" mb={1}>Line Total</FormLabel>
+                        <Text fontWeight="700" fontSize="sm" pt={1}>
+                          ₹{((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString('en-IN')}
+                        </Text>
+                      </FormControl>
+                    </HStack>
+                  </Box>
+                ))}
+
+                <Divider />
+
+                <HStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Discount (%)</FormLabel>
+                    <NumberInput min={0} max={100} value={discountPercent} onChange={(val) => setDiscountPercent(Number(val) || 0)}>
                       <NumberInputField borderRadius="10px" />
                     </NumberInput>
                   </FormControl>
-
-                  <FormControl isRequired>
-                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Unit Price (₹)</FormLabel>
-                    <NumberInput min={0} value={price} onChange={(val) => setPrice(Number(val) || 0)}>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">GST (%)</FormLabel>
+                    <NumberInput min={0} max={100} value={gstPercent} onChange={(val) => setGstPercent(Number(val) || 0)}>
+                      <NumberInputField borderRadius="10px" />
+                    </NumberInput>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Shipping (₹)</FormLabel>
+                    <NumberInput min={0} value={shippingCharge} onChange={(val) => setShippingCharge(Number(val) || 0)}>
                       <NumberInputField borderRadius="10px" />
                     </NumberInput>
                   </FormControl>
                 </HStack>
 
-                <FormControl isRequired>
-                  <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Status</FormLabel>
-                  <Select value={status} onChange={(e) => setStatus(e.target.value)} borderRadius="10px">
-                    <option value="pending">Pending</option>
-                    <option value="paid">Paid</option>
-                    <option value="overdue">Overdue</option>
-                  </Select>
-                </FormControl>
+                <HStack spacing={4}>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Due Date</FormLabel>
+                    <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} borderRadius="10px" />
+                  </FormControl>
+                  <FormControl isRequired>
+                    <FormLabel fontWeight="600" fontSize="sm" color="gray.600">Status</FormLabel>
+                    <Select value={status} onChange={(e) => setStatus(e.target.value)} borderRadius="10px">
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="overdue">Overdue</option>
+                    </Select>
+                  </FormControl>
+                </HStack>
 
                 <Divider />
 
-                <Flex w="full" justify="space-between" px={2}>
-                  <Text fontWeight="700" color="gray.500">Estimated Total:</Text>
-                  <Text fontWeight="800" color="sky.600" fontSize="lg">
-                    ₹{(quantity * price).toLocaleString('en-IN')}
-                  </Text>
-                </Flex>
+                <VStack spacing={1} align="stretch" bg="gray.50" p={3} borderRadius="10px">
+                  <Flex justify="space-between"><Text fontSize="sm" color="gray.500">Sub Total</Text><Text fontSize="sm">₹{subtotal.toLocaleString('en-IN')}</Text></Flex>
+                  {discountAmount > 0 && (
+                    <Flex justify="space-between"><Text fontSize="sm" color="green.600">Discount</Text><Text fontSize="sm" color="green.600">- ₹{discountAmount.toLocaleString('en-IN')}</Text></Flex>
+                  )}
+                  {gstAmount > 0 && (
+                    <Flex justify="space-between"><Text fontSize="sm" color="gray.500">GST</Text><Text fontSize="sm">₹{gstAmount.toLocaleString('en-IN')}</Text></Flex>
+                  )}
+                  {Number(shippingCharge) > 0 && (
+                    <Flex justify="space-between"><Text fontSize="sm" color="gray.500">Shipping</Text><Text fontSize="sm">₹{Number(shippingCharge).toLocaleString('en-IN')}</Text></Flex>
+                  )}
+                  <Divider />
+                  <Flex justify="space-between">
+                    <Text fontWeight="800" color="gray.700">Grand Total</Text>
+                    <Text fontWeight="800" color="sky.600" fontSize="lg">₹{grandTotal.toLocaleString('en-IN')}</Text>
+                  </Flex>
+                </VStack>
               </VStack>
             </ModalBody>
             <ModalFooter>

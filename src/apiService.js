@@ -167,6 +167,14 @@ export const apiService = {
       phone: profileData.phone,
       email: profileData.email,
       address: profileData.address,
+      website: profileData.website,
+      gstNumber: profileData.gstNumber,
+      logoUrl: profileData.logoUrl,
+      bankName: profileData.bankName,
+      bankAccountName: profileData.bankAccountName,
+      bankAccountNo: profileData.bankAccountNo,
+      ifscCode: profileData.ifscCode,
+      upiId: profileData.upiId,
     };
     const res = await api.put('/business', backendData);
     return res.data;

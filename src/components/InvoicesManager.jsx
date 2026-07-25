@@ -396,13 +396,16 @@ export default function InvoicesManager() {
       {/* Modal */}
       <Modal isOpen={isOpen} onClose={onClose} isCentered size="2xl" scrollBehavior="inside">
         <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(2px)" />
-        <ModalContent borderRadius="18px">
-          <form onSubmit={handleSave}>
+        <ModalContent borderRadius="18px" maxH="85vh">
+          <form
+            onSubmit={handleSave}
+            style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: '1 1 auto' }}
+          >
             <ModalHeader fontWeight="800">
               {selectedInvoice ? 'Modify Invoice Record' : 'Generate New Invoice'}
             </ModalHeader>
             <ModalCloseButton />
-            <ModalBody>
+            <ModalBody overflowY="auto" flex="1 1 auto" minH={0}>
               <VStack spacing={4} align="stretch">
                 <Text fontWeight="700" fontSize="sm" color="gray.700">Bill To</Text>
                 <HStack spacing={4}>

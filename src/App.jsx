@@ -17,6 +17,7 @@ import InvoicesManager from './components/InvoicesManager';
 import UsersManager from './components/UsersManager';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
+import BusinessDirectory from './components/BusinessDirectory';
 
 import {
   FaChartPie,
@@ -77,7 +78,7 @@ const PAGE_TITLES = {
   '/settings': 'Business Settings',
 };
 
-function AppLayout({ stats, reloadStats, onLogout }) {
+function AppLayout({ stats, reloadStats, onLogout, isAdmin, viewingOwnerName, onSwitchBusiness }) {
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || 'Admin';
   const user = apiService.getCurrentUser() || { email: 'admin@example.com', name: 'Admin User' };
@@ -212,6 +213,26 @@ function AppLayout({ stats, reloadStats, onLogout }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {isAdmin && viewingOwnerName && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px',
+                padding: '6px 12px',
+              }}>
+                <span style={{ fontSize: '12px', color: '#0369a1' }}>
+                  Viewing: <strong>{viewingOwnerName}</strong>
+                </span>
+                <button
+                  onClick={onSwitchBusiness}
+                  style={{
+                    fontSize: '11px', fontWeight: '700', color: '#0ea5e9',
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  Switch Business
+                </button>
+              </div>
+            )}
             <button style={{
               width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #e2e8f0',
               background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
@@ -246,7 +267,9 @@ function AppLayout({ stats, reloadStats, onLogout }) {
 export default function App() {
   const [stats, setStats] = useState({});
   const [authenticated, setAuthenticated] = useState(false);
+  const [viewingOwner, setViewingOwner] = useState(null);
   const apiModeState = isApiMode();
+  const isAdmin = apiService.isAdmin();
 
   const reloadStats = async () => {
     try {
@@ -261,20 +284,31 @@ export default function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial auth/session check on mount
     const isAuth = apiService.isAuthenticated();
     setAuthenticated(isAuth);
-    // No per-business scoping in this build - admins always see everything.
-    apiService.clearViewingOwner();
+    setViewingOwner(apiService.getViewingOwner());
     if (isAuth) reloadStats();
   }, [apiModeState]);
 
   const handleLoginSuccess = () => {
     setAuthenticated(true);
-    apiService.clearViewingOwner();
+    setViewingOwner(apiService.getViewingOwner());
     reloadStats();
   };
 
   const handleLogout = async () => {
     await apiService.logout();
     setAuthenticated(false);
+    setViewingOwner(null);
+  };
+
+  const handleSelectBusiness = () => {
+    setViewingOwner(apiService.getViewingOwner());
+    reloadStats();
+  };
+
+  const handleSwitchBusiness = () => {
+    apiService.clearViewingOwner();
+    setViewingOwner(null);
+    setStats({});
   };
 
   // If in API mode and NOT authenticated, show the login screen
@@ -282,6 +316,16 @@ export default function App() {
     return (
       <ChakraProvider theme={theme}>
         <Login onLoginSuccess={handleLoginSuccess} />
+      </ChakraProvider>
+    );
+  }
+
+  // Admin logged in but hasn't picked a business yet this session
+  if (isAdmin && !viewingOwner) {
+    return (
+      <ChakraProvider theme={theme}>
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+        <BusinessDirectory onSelectBusiness={handleSelectBusiness} onLogout={handleLogout} />
       </ChakraProvider>
     );
   }
@@ -294,6 +338,9 @@ export default function App() {
           stats={stats}
           reloadStats={reloadStats}
           onLogout={handleLogout}
+          isAdmin={isAdmin}
+          viewingOwnerName={viewingOwner?.name}
+          onSwitchBusiness={handleSwitchBusiness}
         />
       </Router>
     </ChakraProvider>

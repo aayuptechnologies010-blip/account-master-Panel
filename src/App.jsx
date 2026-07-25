@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme, Box } from '@chakra-ui/react';
 import { apiService, isApiMode } from './apiService';
@@ -77,7 +77,7 @@ const PAGE_TITLES = {
   '/settings': 'Business Settings',
 };
 
-function AppLayout({ stats, reloadStats, onLogout, isAdmin, viewingOwnerName, onSwitchBusiness }) {
+function AppLayout({ stats, reloadStats, onLogout }) {
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || 'Admin';
   const user = apiService.getCurrentUser() || { email: 'admin@example.com', name: 'Admin User' };
@@ -212,23 +212,6 @@ function AppLayout({ stats, reloadStats, onLogout, isAdmin, viewingOwnerName, on
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {isAdmin && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '6px 8px 6px 14px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)', border: '1px solid #bae6fd'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>
-                  Viewing: {viewingOwnerName || 'Unknown Business'}
-                </span>
-                <button onClick={onSwitchBusiness} style={{
-                  padding: '5px 12px', borderRadius: '8px', border: 'none',
-                  background: '#0ea5e9', color: 'white', fontSize: '11px', fontWeight: '700', cursor: 'pointer'
-                }}>
-                  Switch Business
-                </button>
-              </div>
-            )}
             <button style={{
               width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #e2e8f0',
               background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
@@ -263,19 +246,12 @@ function AppLayout({ stats, reloadStats, onLogout, isAdmin, viewingOwnerName, on
 export default function App() {
   const [stats, setStats] = useState({});
   const [authenticated, setAuthenticated] = useState(false);
-  const [viewingOwner, setViewingOwner] = useState(null);
   const apiModeState = isApiMode();
-  const isAdmin = apiService.isAdmin();
-  const statsRequestId = useRef(0);
 
   const reloadStats = async () => {
-    const requestId = ++statsRequestId.current;
     try {
       const dashboardStats = await apiService.getDashboardStats();
-      // Ignore this response if a newer reload (e.g. switching business) fired after it
-      if (requestId === statsRequestId.current) {
-        setStats(dashboardStats);
-      }
+      setStats(dashboardStats);
     } catch (e) {
       console.error(e);
     }
@@ -285,27 +261,20 @@ export default function App() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial auth/session check on mount
     const isAuth = apiService.isAuthenticated();
     setAuthenticated(isAuth);
-    setViewingOwner(apiService.getViewingOwner());
+    // No per-business scoping in this build - admins always see everything.
+    apiService.clearViewingOwner();
     if (isAuth) reloadStats();
   }, [apiModeState]);
 
   const handleLoginSuccess = () => {
     setAuthenticated(true);
-    setViewingOwner(apiService.getViewingOwner());
+    apiService.clearViewingOwner();
     reloadStats();
   };
 
   const handleLogout = async () => {
     await apiService.logout();
     setAuthenticated(false);
-    setViewingOwner(null);
-  };
-
-  const handleSwitchBusiness = () => {
-    statsRequestId.current++; // invalidate any in-flight reload from the previous business
-    apiService.clearViewingOwner();
-    setViewingOwner(null);
-    setStats({});
   };
 
   // If in API mode and NOT authenticated, show the login screen
@@ -325,9 +294,6 @@ export default function App() {
           stats={stats}
           reloadStats={reloadStats}
           onLogout={handleLogout}
-          isAdmin={isAdmin}
-          viewingOwnerName={viewingOwner?.name}
-          onSwitchBusiness={handleSwitchBusiness}
         />
       </Router>
     </ChakraProvider>

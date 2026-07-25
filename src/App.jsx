@@ -15,7 +15,6 @@ import SalesmenManager from './components/SalesmenManager';
 import BusinessSettings from './components/BusinessSettings';
 import InvoicesManager from './components/InvoicesManager';
 import UsersManager from './components/UsersManager';
-import BusinessDirectory from './components/BusinessDirectory';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 
@@ -302,11 +301,6 @@ export default function App() {
     setViewingOwner(null);
   };
 
-  const handleSelectBusiness = () => {
-    setViewingOwner(apiService.getViewingOwner());
-    reloadStats();
-  };
-
   const handleSwitchBusiness = () => {
     statsRequestId.current++; // invalidate any in-flight reload from the previous business
     apiService.clearViewingOwner();
@@ -319,16 +313,6 @@ export default function App() {
     return (
       <ChakraProvider theme={theme}>
         <Login onLoginSuccess={handleLoginSuccess} />
-      </ChakraProvider>
-    );
-  }
-
-  // Admin logged in but hasn't picked a business yet
-  if (isAdmin && !viewingOwner) {
-    return (
-      <ChakraProvider theme={theme}>
-        <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
-        <BusinessDirectory onSelectBusiness={handleSelectBusiness} onLogout={handleLogout} />
       </ChakraProvider>
     );
   }

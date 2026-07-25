@@ -39,7 +39,7 @@ export default function Login({ onLoginSuccess }) {
 
     setLoading(true);
     try {
-      const res = await apiService.login(email, password);
+      const res = await apiService.adminLogin(email, password);
 
       if (res.success) {
         toast({ title: 'Login Successful', status: 'success', duration: 2000, isClosable: true });

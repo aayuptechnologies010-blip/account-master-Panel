@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme, Box } from '@chakra-ui/react';
 import { apiService, isApiMode } from './apiService';
+import appleLogo from './assets/apple-logo.png';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -24,7 +25,6 @@ import {
   FaBoxes,
   FaFileInvoiceDollar,
   FaReceipt,
-  FaWarehouse,
   FaBell,
   FaCog,
   FaSignOutAlt,
@@ -98,11 +98,10 @@ function AppLayout({ stats, reloadStats, onLogout, isAdmin, viewingOwnerName, on
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
-              borderRadius: '12px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(14,165,233,0.4)'
+              width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
             }}>
-              <FaWarehouse style={{ color: 'white', fontSize: '18px' }} />
+              <img src={appleLogo} alt="Account Master" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ color: 'white', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.3px' }}>Account Master</div>

@@ -34,7 +34,7 @@ import {
   NumberInputField,
   Divider
 } from '@chakra-ui/react';
-import { FaSearch, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaSearch, FaEdit, FaTrash, FaPlus, FaPrint } from 'react-icons/fa';
 import { apiService } from '../apiService';
 import Pagination from './Pagination';
 import Swal from 'sweetalert2';
@@ -187,6 +187,19 @@ export default function InvoicesManager() {
     });
   };
 
+  const handlePrint = async (id) => {
+    try {
+      await apiService.openInvoicePdf(id);
+    } catch (err) {
+      toast({
+        title: "Error generating PDF",
+        description: err.response?.data?.message || err.message,
+        status: "error",
+        duration: 3000,
+      });
+    }
+  };
+
   const getStatusBadgeColor = (s) => {
     switch (s) {
       case 'paid': return 'green';
@@ -276,6 +289,16 @@ export default function InvoicesManager() {
                   </Td>
                   <Td textAlign="right">
                     <Flex justify="end" gap={2}>
+                      <Button
+                        size="xs"
+                        leftIcon={<FaPrint />}
+                        variant="outline"
+                        colorScheme="sky"
+                        onClick={() => handlePrint(inv._id)}
+                        borderRadius="6px"
+                      >
+                        Print
+                      </Button>
                       <Button
                         size="xs"
                         leftIcon={<FaEdit />}

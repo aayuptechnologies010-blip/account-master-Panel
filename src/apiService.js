@@ -704,6 +704,14 @@ export const apiService = {
     return res.data;
   },
 
+  // Opens the server-generated invoice PDF in a new tab
+  openInvoicePdf: async (id) => {
+    const res = await api.get(`/invoices/${id}/pdf`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+    window.open(url, '_blank');
+    setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+  },
+
   // --- DASHBOARD STATS ---
   getDashboardStats: async () => {
     if (!isApiMode()) {
